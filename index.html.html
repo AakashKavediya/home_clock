@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>C3 Motor Dashboard</title>
+<style>
+:root{--bg:#0f1115;--card:#181b22;--fg:#e8eaf0;--mut:#8b91a1;--ac:#3ddc97;--bad:#ff5c6c;--bd:#272b36}
+*{box-sizing:border-box}body{margin:0;padding:16px;background:var(--bg);color:var(--fg);font:15px system-ui,sans-serif;max-width:520px;margin:auto}
+h1{font-size:18px;margin:0 0 12px}.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px;margin-bottom:12px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.row>*{flex:1}
+button{background:#232734;color:var(--fg);border:1px solid var(--bd);border-radius:8px;padding:12px;font-size:15px;cursor:pointer}
+button:active{transform:scale(.97)}button.p{background:var(--ac);color:#08140e;border:0;font-weight:600}button.d{background:var(--bad);color:#fff;border:0}
+input{background:#0f1115;color:var(--fg);border:1px solid var(--bd);border-radius:8px;padding:11px;font-size:15px;min-width:0}
+.k{color:var(--mut);font-size:12px;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--bad);margin-right:6px}.on{background:var(--ac)}
+.big{font-size:26px;font-weight:700}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center}
+</style></head><body>
+<h1>ESP32-C3 Motor</h1>
+
+<div class="card">
+  <div class="row"><span><i class="dot" id="bd"></i>Broker</span><span><i class="dot" id="dd"></i>Device</span></div>
+  <div class="grid" style="margin-top:12px">
+    <div><div class="k">State</div><div class="big" id="s">--</div></div>
+    <div><div class="k">Timer (s)</div><div class="big" id="t">--</div></div>
+    <div><div class="k">Alarm</div><div class="big" id="a">--</div></div>
+  </div>
+</div>
+
+<div class="card"><div class="k">Motor</div>
+  <div class="row"><button class="p" onclick="send('RUN')">Run 5× cycle</button></div>
+  <div class="row" style="margin-top:8px"><button onclick="send('FWD')">Forward 1.5s</button><button onclick="send('BACK')">Backward 1.5s</button></div>
+  <div class="row" style="margin-top:8px"><button class="d" onclick="send('STOP')">Stop</button><button class="d" onclick="if(confirm('Reset ESP32?'))send('RESET')">Reset ESP32</button></div>
+</div>
+
+<div class="card"><div class="k">Hourly auto-run (next in <span id="h">--</span> min)</div>
+  <div class="row"><button class="p" onclick="send('HOURLY:ON')">On</button><button onclick="send('HOURLY:OFF')">Off</button></div>
+</div>
+
+<div class="card"><div class="k">Timer (seconds from now → run cycle)</div>
+  <div class="row"><input id="ti" type="number" min="1" placeholder="e.g. 60"><button class="p" onclick="send('TIMER:'+(+ti.value||0))">Set</button><button onclick="send('TIMER:0')">Cancel</button></div>
+</div>
+
+<div class="card"><div class="k">Daily alarm (IST → run cycle)</div>
+  <div class="row"><input id="ai" type="time"><button class="p" onclick="ai.value&&send('ALARM:'+ai.value)">Set</button><button onclick="send('ALARM:OFF')">Off</button></div>
+</div>
+
+<script src="https://unpkg.com/mqtt@5/dist/mqtt.min.js"></script>
+<script>
+const C={url:'wss://broker.hivemq.com:8884/mqtt',user:'Aakash_Kavediya',pass:'Aakash@2006',base:'farmeros/c3motor/'};
+const $=id=>document.getElementById(id);
+const m=mqtt.connect(C.url,{username:C.user,password:C.pass,clientId:'web_'+Math.random().toString(16).slice(2,8),reconnectPeriod:3000});
+m.on('connect',()=>{$('bd').className='dot on';m.subscribe(C.base+'status')});
+m.on('close',()=>{$('bd').className='dot';$('dd').className='dot'});
+m.on('message',(_,p)=>{
+  const x=p.toString();
+  if(x==='offline'){$('dd').className='dot';$('s').textContent='OFFLINE';return}
+  try{const j=JSON.parse(x);$('dd').className='dot on';$('s').textContent=j.s+(j.left?' ('+j.left+')':'');$('t').textContent=j.t||'--';$('a').textContent=j.a;$('h').textContent=j.h<0?'off':j.h}catch(e){}
+});
+const send=c=>m.connected&&m.publish(C.base+'cmd',c);
+</script></body></html>
